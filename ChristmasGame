@@ -1,0 +1,228 @@
+import pygame
+import random
+import sys
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GRAY = (169, 169, 169)
+
+# Create the game window
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Elf on a Candy Cane Game")
+
+# Load images (replace these placeholders with actual image paths)
+background_image = pygame.image.load("background.png")
+elf_candy_cane_image = pygame.image.load("elf_candy_cane.png")
+grinch_image = pygame.image.load("grinch.png")  # Replace with the image of your grinch
+snowball_image = pygame.image.load("snowball.png")  # Replace with the image of your snowball
+present_image = pygame.image.load("present.png")
+heart_full_image = pygame.image.load("heart_full.png")
+heart_empty_image = pygame.image.load("heart_empty.png")
+ending_image = pygame.image.load("ending_image.png")
+bright_champ_image = pygame.image.load("bright_champ.png")
+
+# Resize background to fit the window
+background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
+
+# Resize elf_candy_cane_image to be slightly bigger and move to the left
+elf_candy_cane_image = pygame.transform.scale(elf_candy_cane_image, (90, 90))
+elf_candy_cane_x = 10
+
+# Resize other sprites to be the same size as the elf
+sprite_size = (90, 90)
+grinch_image = pygame.transform.scale(grinch_image, sprite_size)
+snowball_image = pygame.transform.scale(snowball_image, (30, 30))  # Adjust size as needed
+present_image = pygame.transform.scale(present_image, sprite_size)
+
+# Resize hearts to be smaller
+heart_size = (20, 20)
+heart_full_image = pygame.transform.scale(heart_full_image, heart_size)
+heart_empty_image = pygame.transform.scale(heart_empty_image, heart_size)
+
+# Initialize game variables
+elf_candy_cane_y = HEIGHT // 2 - elf_candy_cane_image.get_height() // 2  # Start near the left middle
+movement_speed = 5
+projectile_speed = 10
+max_lives = 4
+lives = max_lives
+score = 0
+level_threshold = 20  # Updated to require 20 points to end the game
+current_level = 1
+
+# Create sprite groups
+grinches = pygame.sprite.Group()
+presents = pygame.sprite.Group()
+snowballs = pygame.sprite.Group()
+
+# Create a list to keep track of heart positions
+heart_positions = [(WIDTH - 20 * (i + 1), 10) for i in range(max_lives)]
+
+# Boolean variable to track space bar press
+space_pressed = False
+
+# Variables for controlling snowball shooting rate
+last_snowball_time = 0
+snowball_cooldown = 500  # in milliseconds
+
+# Clock to control the frame rate
+clock = pygame.time.Clock()
+
+# Load the bright_champ image and resize it (wider and bigger)
+bright_champ_image = pygame.transform.scale(bright_champ_image, (150, 100))
+bright_champ_rect = bright_champ_image.get_rect()
+bright_champ_rect.topleft = (10, HEIGHT - 110)  # Bottom-left corner
+
+# Function to shoot snowball
+def shoot_snowball():
+    global last_snowball_time
+    current_time = pygame.time.get_ticks()
+
+    if current_time - last_snowball_time > snowball_cooldown:
+        snowball = pygame.sprite.Sprite()
+        snowball.image = snowball_image
+        snowball.rect = snowball_image.get_rect()
+        snowball.rect.x = elf_candy_cane_x + elf_candy_cane_image.get_width()
+        snowball.rect.y = elf_candy_cane_y + elf_candy_cane_image.get_height() // 2
+        snowballs.add(snowball)
+        last_snowball_time = current_time
+
+# Function to draw hearts indicating remaining lives
+def draw_hearts():
+    for i, position in enumerate(heart_positions):
+        heart_image = heart_full_image if i < lives else heart_empty_image
+        screen.blit(heart_image, position)
+
+# Main game loop
+while lives > 0 and score < level_threshold:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+            space_pressed = True
+        elif event.type == pygame.KEYUP and event.key == pygame.K_SPACE:
+            space_pressed = False
+
+    # Update elf and candy cane position
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_UP] and elf_candy_cane_y > 0:
+        elf_candy_cane_y -= movement_speed
+    if keys[pygame.K_DOWN] and elf_candy_cane_y < HEIGHT - elf_candy_cane_image.get_height():
+        elf_candy_cane_y += movement_speed
+
+    # Shoot snowball on space press (one snowball per space press)
+    if space_pressed:
+        shoot_snowball()
+
+    # Move grinches, presents, and snowballs
+    for grinch in grinches:
+        grinch.rect.x -= movement_speed
+        if grinch.rect.colliderect(
+                elf_candy_cane_x, elf_candy_cane_y, elf_candy_cane_image.get_width(), elf_candy_cane_image.get_height()
+        ):
+            lives -= 1
+            grinches.remove(grinch)
+
+    for present in presents:
+        present.rect.x -= movement_speed
+        if present.rect.colliderect(
+                elf_candy_cane_x, elf_candy_cane_y, elf_candy_cane_image.get_width(), elf_candy_cane_image.get_height()
+        ):
+            score += 1
+            presents.remove(present)
+
+    for snowball in snowballs:
+        snowball.rect.x += projectile_speed
+
+    # Check for collisions with snowballs and remove hit grinches
+    for snowball in snowballs.copy():  # Using copy() to iterate over a copy of the list
+        for grinch in grinches.copy():
+            if snowball.rect.colliderect(grinch.rect):
+                grinches.remove(grinch)
+                score += 1
+                snowballs.remove(snowball)  # Remove the snowball when it hits a grinch
+
+    # Spawn new grinches, presents, and snowballs randomly
+    if random.randint(0, 100) < 2:
+        grinch = pygame.sprite.Sprite()
+        grinch.image = grinch_image
+        grinch.rect = grinch_image.get_rect()
+        grinch.rect.x = WIDTH
+        grinch.rect.y = random.randint(0, HEIGHT - sprite_size[1])
+        grinches.add(grinch)
+
+    if random.randint(0, 100) < 3:
+        present = pygame.sprite.Sprite()
+        present.image = present_image
+        present.rect = present_image.get_rect()
+        present.rect.x = WIDTH
+        present.rect.y = random.randint(0, HEIGHT - sprite_size[1])
+        presents.add(present)
+
+    # Draw background
+    screen.blit(background_image, (0, 0))
+
+    # Draw sprites
+    screen.blit(elf_candy_cane_image, (elf_candy_cane_x, elf_candy_cane_y))
+    grinches.draw(screen)
+    presents.draw(screen)
+    snowballs.draw(screen)
+
+    # Draw hearts
+    draw_hearts()
+
+    # Draw score
+    font = pygame.font.Font(None, 36)
+    score_text = font.render(f"Score: {score}", True, WHITE)
+    screen.blit(score_text, (10, 10))
+
+    # Draw level (move it to the left)
+    level_text = font.render(f"Level: {current_level}", True, WHITE)
+    level_rect = level_text.get_rect(topleft=(10, 50))
+    screen.blit(level_text, level_rect)
+
+    # Draw bright_champ
+    screen.blit(bright_champ_image, bright_champ_rect.topleft)
+
+    # Update the display
+    pygame.display.flip()
+
+    # Cap the frame rate
+    clock.tick(FPS)
+
+# Display the ending image (bigger and centered, white background)
+ending_image = pygame.transform.scale(ending_image, (WIDTH, HEIGHT))
+screen.fill(WHITE)  # Fill the screen with white
+screen.blit(ending_image, (0, 0))
+
+# Calculate the win/lose text
+font = pygame.font.Font(None, 48)
+text_color = (0, 0, 0)  # Black
+if score >= level_threshold:
+    result_text = font.render(f"Yay! You win with a score of {score}", True, text_color)
+else:
+    result_text = font.render("Uh oh! You lost", True, text_color)
+
+# Position the win/lose text under the image
+result_rect = result_text.get_rect(center=(WIDTH // 2, HEIGHT - 100))
+screen.blit(result_text, result_rect.topleft)
+pygame.display.flip()
+
+# Wait for a click to exit
+waiting_for_click = True
+while waiting_for_click:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            waiting_for_click = False
+
+# Quit Pygame
+pygame.quit()
